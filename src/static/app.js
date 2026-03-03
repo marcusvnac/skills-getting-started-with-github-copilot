@@ -20,11 +20,24 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const spotsLeft = details.max_participants - details.participants.length;
 
+        // build participant list markup with delete icons
+        let participantsMarkup = "<p><strong>Participants:</strong> none yet</p>";
+        if (details.participants && details.participants.length) {
+          const items = details.participants
+            .map(
+              (p) =>
+                `<li><span class=\"participant-email\">${p}</span><button class=\"delete-participant\" data-activity=\"${name}\" data-email=\"${p}\">&times;</button></li>`
+            ) // list with remove button
+            .join("");
+          participantsMarkup = `<p><strong>Participants:</strong></p><ul class=\"participant-list\">${items}</ul>`;
+        }
+
         activityCard.innerHTML = `
           <h4>${name}</h4>
           <p>${details.description}</p>
           <p><strong>Schedule:</strong> ${details.schedule}</p>
           <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
+          ${participantsMarkup}
         `;
 
         activitiesList.appendChild(activityCard);
@@ -62,6 +75,8 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        // update the activity cards to reflect new participant
+        fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
@@ -80,6 +95,41 @@ document.addEventListener("DOMContentLoaded", () => {
       console.error("Error signing up:", error);
     }
   });
+
+  // handle delete clicks using event delegation
+  activitiesList.addEventListener("click", (event) => {
+    if (event.target.classList.contains("delete-participant")) {
+      const activity = event.target.dataset.activity;
+      const email = event.target.dataset.email;
+      removeParticipant(activity, email);
+    }
+  });
+
+  // helper to call unsubscribe endpoint and refresh
+  async function removeParticipant(activity, email) {
+    try {
+      const response = await fetch(
+        `/activities/${encodeURIComponent(activity)}/unsubscribe?email=${encodeURIComponent(email)}`,
+        { method: "POST" }
+      );
+      const result = await response.json();
+      if (response.ok) {
+        messageDiv.textContent = result.message;
+        messageDiv.className = "success";
+        // reload list to reflect change
+        fetchActivities();
+      } else {
+        messageDiv.textContent = result.detail || "Failed to remove participant";
+        messageDiv.className = "error";
+      }
+      messageDiv.classList.remove("hidden");
+      setTimeout(() => {
+        messageDiv.classList.add("hidden");
+      }, 5000);
+    } catch (error) {
+      console.error("Error removing participant:", error);
+    }
+  }
 
   // Initialize app
   fetchActivities();
